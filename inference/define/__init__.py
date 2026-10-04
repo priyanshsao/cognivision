@@ -1,10 +1,3 @@
-from .classes import Db, Model, ModelResult
-from .models import available_models, ObjectDetection
+from .define import InferenceModel, ModelResult, ObjectDetection, AvailableModels
 
-__all__ = [
-    "Db",
-    "Model",
-    "ModelResult",
-    "available_models"
-    "ObjectDetection"
-]
+__all__ = ["InferenceModel", "ModelResult", "AvailableModels", "ObjectDetection"]
