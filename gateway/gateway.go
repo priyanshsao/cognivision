@@ -19,12 +19,12 @@ type Gateway struct {
 	// server represents the http server.
 	server *server.Server
 	// db represents the database which is used for streaming and storage.
-	db 	   *database.Db
-	
-	interpreter	*interpreter.Ipt
+	db *database.Db
+
+	interpreter *interpreter.Ipt
 
 	// mu is used for avoiding race conditions when functions access pending map.
-	mu 	   sync.Mutex
+	mu sync.Mutex
 	// pending stores the current processing client request's id with its client
 	// so that when result is ready it can send to the client.
 	pending map[string]*server.Client
@@ -41,7 +41,7 @@ func NewGateway(ctx context.Context, serverPort string, dbAddr string) *Gateway 
 	}
 	gw.interpreter = ipt
 	gw.pending = make(map[string]*server.Client)
-	
+
 	return gw
 }
 
@@ -51,14 +51,14 @@ func (gw *Gateway) Start(ctx context.Context) error {
 		return err
 	}
 	logrus.Infof("connected to database on: %s", gw.db.Addr())
-	
-	defer func ()  {
+
+	defer func() {
 		gw.db.Disconnect()
 		logrus.Info("database disconnected successfully.")
 	}()
 
 	// covers the second half cycle
-	// reads data from inference server 
+	// reads data from inference server
 	// and then writes to client.
 	go gw.readResults(ctx)
 
@@ -71,9 +71,9 @@ func (gw *Gateway) Start(ctx context.Context) error {
 func (gw *Gateway) readAndPush(ctx context.Context, c *server.Client, data []byte) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	
+
 	cr := new(types.ClientRequest)
-	
+
 	if err := json.Unmarshal(data, cr); err != nil {
 		logrus.Debugf("unable to unmarshal client request: %v", err)
 		return
@@ -106,7 +106,7 @@ func (gw *Gateway) readResults(ctx context.Context) {
 	resultChan := gw.db.PullFromStream(ctx)
 
 	for r := range resultChan {
-		
+
 		// Remove the id from pending map.
 		c, ok := gw.popPending(r.ID)
 
@@ -116,12 +116,12 @@ func (gw *Gateway) readResults(ctx context.Context) {
 			continue
 		}
 
-		jsonRes, err := json.Marshal(r.Result)
+		jsonRes, err := json.Marshal(r.Inference)
 		if err != nil {
 			logrus.Debugf("unable to marshal result: %v", err)
 		}
 
-		summary, detail, err := gw.interpreter.Interpret(ctx, string(jsonRes), r.Prompt)
+		summary, err := gw.interpreter.Interpret(ctx, string(jsonRes), r.Prompt)
 		if err != nil {
 			logrus.Debugf("interpret problem: %v", err)
 		}
@@ -132,9 +132,9 @@ func (gw *Gateway) readResults(ctx context.Context) {
 		result := new(types.Result)
 
 		result.ID = r.ID
-		result.Summary = summary + "\n" + detail
+		result.Summary = summary
 		result.Img = r.Img
-		result.Inference = r.Result
+		result.Inference = r.Inference
 		result.Time = 0
 		result.Date = "2000"
 

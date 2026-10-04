@@ -20,7 +20,7 @@ type ClientRequestHandler func(ctx context.Context, c *Client, data []byte)
 type Client struct {
 	// conn is the actual connection
 	conn *websocket.Conn
-	// buffer is the channel for all the messages that 
+	// buffer is the channel for all the messages that
 	// needed to send to the client
 	// why buffer because there are multiple go routines running
 	// so to ensure a sequal message flow
@@ -41,7 +41,7 @@ type Server struct {
 	// operations to Server.clients map.
 	mu sync.RWMutex
 
-	// clients stores all the active and connected clients 
+	// clients stores all the active and connected clients
 	clients map[*Client]struct{}
 
 	// handler is the function that should be called when client sends request,
@@ -55,10 +55,10 @@ type Server struct {
 
 // NewServer takes port and returns new server object with upgrader that allows all connections.
 func NewServer(port string) *Server {
-	
+
 	s := new(Server)
 	s.port = port
-	s.upgrader = websocket.Upgrader {
+	s.upgrader = websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool { return true },
 	}
 	s.clients = make(map[*Client]struct{})
@@ -87,12 +87,12 @@ func (s *Server) Write(c *Client, r *types.Result) error {
 	}
 
 	select {
-	// this generally blocks if no one to read from channel 
+	// this generally blocks if no one to read from channel
 	// but select falls down to default when it blocks.
 	case c.buffer <- payload:
 	// I don't think as of now this will ever get executed.
 	case <-c.done:
-	return errors.New("client disconnected")
+		return errors.New("client disconnected")
 	default:
 		logrus.Debugf("client buffer is full dropping result: %s", r.ID)
 	}
@@ -135,7 +135,7 @@ func (c *Client) read(ctx context.Context, handler ClientRequestHandler) {
 			logrus.Debugf("unable to continue reading from client: %v", err)
 			return
 		}
-		
+
 		logrus.Debugf("recieved %d bytes from client.", len(data))
 
 		handler(ctx, c, data)
@@ -161,7 +161,7 @@ func (c *Client) write() {
 
 func (s *Server) upgradeConn(w http.ResponseWriter, r *http.Request) {
 	logrus.Infof("client detected: %s %s from %s (%s)", r.Method, r.URL.Path, r.RemoteAddr, r.UserAgent())
-	
+
 	conn, err := s.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		logrus.Debugf("unable to upgrade client request to socket: %v", err)
@@ -192,7 +192,7 @@ func (s *Server) Start(ctx context.Context, handler ClientRequestHandler) error 
 
 	// If program exits, this goroutine shuts the server gracefully.
 	go func() {
-		<- ctx.Done()
+		<-ctx.Done()
 		httpServer.Close()
 		logrus.Info("HTTP server closed gracefully.")
 	}()

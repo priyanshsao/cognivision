@@ -13,12 +13,12 @@ import (
 const IMAGE_KEY = "IMAGE:LATEST"
 const REQUEST_STREAM = "REQUEST"
 const RESULT_STREAM = "RESULT"
-const IMAGE_EXPIRY_TIME = 1*time.Minute
+const IMAGE_EXPIRY_TIME = 1 * time.Minute
 
 // Db is the database which is used for storing key:val pairs
 // and for streaming images to all the models
 type Db struct {
-	// addr represents address of the database. 
+	// addr represents address of the database.
 	addr string
 	// client represents the database client with which we are connected.
 	// Using this we can perform operations on the database.
@@ -43,7 +43,7 @@ func (db *Db) Connect(ctx context.Context) error {
 
 	// Create a child ctx from the parent(main func ctx).
 	// Why are we doing this, because main ctx only cancels when
-	// we interrupt with SIGINT SIGTERM, 
+	// we interrupt with SIGINT SIGTERM,
 	// if in worst case, redis is unavailable then ping func will block
 	// the main goroutine forever until program is stopped.
 	// So we create another ctx with 5s timeout, so even if something is wrong,
@@ -60,7 +60,7 @@ func (db *Db) Connect(ctx context.Context) error {
 
 // Addr returns the address of database client.
 func (db *Db) Addr() string {
-	
+
 	return db.addr
 }
 
@@ -72,9 +72,9 @@ func (db *Db) Disconnect() error {
 	return nil
 }
 
-// set is used to store a (key:value) type data in the database. 
+// set is used to store a (key:value) type data in the database.
 func (db *Db) Set(ctx context.Context, key string, img []byte) error {
-	
+
 	return db.client.Set(ctx, key, img, IMAGE_EXPIRY_TIME).Err()
 }
 
@@ -124,7 +124,7 @@ func (db *Db) PullFromStream(ctx context.Context) <-chan *types.InferenceResult 
 // readResult continiously reads from result stream until the ctx is cancelled.
 // If the result message is invalid it skips it.
 // Sends the decoded result to 'out' channel.
-func readResult(ctx context.Context, db *Db,  out chan *types.InferenceResult) {
+func readResult(ctx context.Context, db *Db, out chan *types.InferenceResult) {
 	defer close(out)
 
 	// Start from the latest.
@@ -132,8 +132,8 @@ func readResult(ctx context.Context, db *Db,  out chan *types.InferenceResult) {
 
 	for {
 		select {
-		
-		// If main program stops return immediately 
+
+		// If main program stops return immediately
 		case <-ctx.Done():
 			logrus.Debug("context cancelled, stopping reader.")
 			return
@@ -155,13 +155,13 @@ func readResult(ctx context.Context, db *Db,  out chan *types.InferenceResult) {
 
 		if err != nil {
 			if ctx.Err() != nil {
-				// Shutdown if main context cancelled 
+				// Shutdown if main context cancelled
 				logrus.Debugf("unable to read from stream: %v", err)
 				return
 			}
 
 			logrus.Debugf("unable to read from result stream: %v", err)
-			
+
 			// Wait for some time for results to arrive.
 			time.Sleep(time.Second)
 			continue
@@ -171,11 +171,11 @@ func readResult(ctx context.Context, db *Db,  out chan *types.InferenceResult) {
 			for _, msg := range stream.Messages {
 				// msg.Values is of map[string] interface,
 				// so go has no idea of which type of data it is,
-				// therefore we tell go that it is of string type. 
+				// therefore we tell go that it is of string type.
 				rawResult, ok := msg.Values["result"].(string)
-				
+
 				// If ok is false means the particular message is not of string.
-				// Better to skip this. 
+				// Better to skip this.
 				if !ok {
 					continue
 				}
@@ -184,13 +184,13 @@ func readResult(ctx context.Context, db *Db,  out chan *types.InferenceResult) {
 
 				if err := json.Unmarshal([]byte(rawResult), r); err != nil {
 					logrus.Debugf("unabled to unmarshal result: %v", err)
-					
+
 					// Skip
 					continue
 				}
-				
+
 				logrus.Debugf("recieved result with id: %v", r.ID)
-				// Add the pointer to 'out' channel, 
+				// Add the pointer to 'out' channel,
 				// so whoever is reading can read from it.
 				// MAYBE: As of now this will block until the reader reads the message.
 				out <- r
