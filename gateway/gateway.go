@@ -10,7 +10,7 @@ import (
 	"github.com/cognivision/gateway/database"
 	"github.com/cognivision/gateway/interpreter"
 	"github.com/cognivision/gateway/server"
-	"github.com/cognivision/gateway/types"
+	types "github.com/cognivision/gateway/proto"
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 )
@@ -74,28 +74,29 @@ func (gw *Gateway) readAndPush(ctx context.Context, c *server.Client, data []byt
 
 	cr := new(types.ClientRequest)
 
+	// Todo: replace with protobuf unmarshal
 	if err := json.Unmarshal(data, cr); err != nil {
 		logrus.Debugf("unable to unmarshal client request: %v", err)
 		return
 	}
 
 	// Todo: For now this is fine, we want some simpler and shorter id's.
-	key := uuid.NewString()[:8]
+	id := uuid.NewString()[:8]
 
-	if err := gw.db.Set(ctx, key, cr.Img); err != nil {
+	if err := gw.db.Set(ctx, id, cr.Img); err != nil {
 		logrus.Debugf("unable to store image: %v", err)
 		return
 	}
 
-	gw.registerPending(key, c)
+	gw.registerPending(id, c)
 
-	req := new(types.Request)
-	req.ID = key
+	req := new(types.RedisRequest)
+	req.Id = id
 	req.Prompt = cr.Prompt
 
 	if _, err := gw.db.PushToStrem(ctx, req); err != nil {
 		logrus.Debugf("unable to push request to stream: %v", err)
-		gw.popPending(key)
+		gw.popPending(id)
 		return
 	}
 }
@@ -108,41 +109,40 @@ func (gw *Gateway) readResults(ctx context.Context) {
 	for r := range resultChan {
 
 		// Remove the id from pending map.
-		c, ok := gw.popPending(r.ID)
+		c, ok := gw.popPending(r.Id)
 
 		// If ID is not in the pending map, skip it.
 		if !ok {
-			logrus.Debugf("cannot find result with id: %v", r.ID)
+			logrus.Debugf("cannot find result with id: %v", r.Id)
 			continue
 		}
 
+		// Todo: replace this with protobuf implementation.
 		jsonRes, err := json.Marshal(r.Inference)
 		if err != nil {
 			logrus.Debugf("unable to marshal result: %v", err)
 		}
 
-		summary, err := gw.interpreter.Interpret(ctx, string(jsonRes), r.Prompt)
+		reply, err := gw.interpreter.Interpret(ctx, string(jsonRes), r.Prompt)
 		if err != nil {
 			logrus.Debugf("interpret problem: %v", err)
 		}
 
-		// Todo: this is where i think we add the processing server
-		// which takes the result and provides the final result.
-		// for now we create a dummy result
 		result := new(types.Result)
 
-		result.ID = r.ID
-		result.Summary = summary
-		result.Img = r.Img
+		result.Id = r.Id
+		result.Reply = reply
 		result.Inference = r.Inference
-		result.Time = 0
+		
+		// Todo: add current time and date
+		result.Time = "2 pm"
 		result.Date = "2000"
 
 		if err := gw.server.Write(c, result); err != nil {
 			logrus.Errorf("unable to write to client: %v", err)
 		}
 
-		go gw.db.Delete(ctx, result.ID)
+		go gw.db.Delete(ctx, result.Id)
 	}
 }
 

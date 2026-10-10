@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/cognivision/gateway/types"
+	types "github.com/cognivision/gateway/proto"
 	"github.com/redis/go-redis/v9"
 	"github.com/sirupsen/logrus"
 )
@@ -91,7 +91,8 @@ func (db *Db) Delete(ctx context.Context, key string) error {
 }
 
 // PushToStream pushes data to the given stream.
-func (db *Db) PushToStrem(ctx context.Context, req *types.Request) (string, error) {
+func (db *Db) PushToStrem(ctx context.Context, req *types.RedisRequest) (string, error) {
+	// Todo: remove this and replace with protobuf implementation.
 	payload, err := json.Marshal(req)
 	if err != nil {
 		return "", err
@@ -169,6 +170,8 @@ func readResult(ctx context.Context, db *Db, out chan *types.InferenceResult) {
 
 		for _, stream := range streams {
 			for _, msg := range stream.Messages {
+				// Todo: completely update this implementation.
+
 				// msg.Values is of map[string] interface,
 				// so go has no idea of which type of data it is,
 				// therefore we tell go that it is of string type.
@@ -189,7 +192,7 @@ func readResult(ctx context.Context, db *Db, out chan *types.InferenceResult) {
 					continue
 				}
 
-				logrus.Debugf("recieved result with id: %v", r.ID)
+				logrus.Debugf("recieved result with id: %v", r.Id)
 				// Add the pointer to 'out' channel,
 				// so whoever is reading can read from it.
 				// MAYBE: As of now this will block until the reader reads the message.

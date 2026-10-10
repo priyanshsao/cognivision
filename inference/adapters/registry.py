@@ -5,6 +5,7 @@
 from typing import Any
 
 from inference import define
+import inference.proto.define_pb2 as types 
 
 
 class Registry:
@@ -24,7 +25,7 @@ class Registry:
 
     async def detect(
         self, model_name: define.AvailableModels, img: bytes
-    ) -> define.ModelResult[Any]:
+    ) -> types.Result[Any]:
         model = self.models.get(model_name)
 
         if model is None:

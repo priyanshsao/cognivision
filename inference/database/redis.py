@@ -1,5 +1,5 @@
 # NOTE: This function contains the code for redis database.
-from inference import define
+import inference.proto.define_pb2 as types 
 
 import redis
 from typing import Literal
@@ -28,7 +28,7 @@ class Redis:
         args = {stream: last_id}
         return self.conn.xread(args, block=5000)
 
-    def write_to_stream(self, stream: Streams, payload: define.ModelResult):
+    def write_to_stream(self, stream: Streams, payload: types.InferenceResult):
         return self.conn.xadd(stream, {"result": payload})
 
     def get(self, id: str):

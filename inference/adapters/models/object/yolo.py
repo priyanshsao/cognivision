@@ -1,17 +1,16 @@
 from inference import define
+import inference.proto.define_pb2 as types
 
 from ultralytics import YOLO
 import cv2
 import numpy as np
 import base64
 import logging
-import json
-from dataclasses import asdict
 
 log = logging.getLogger("cognivision")
 
 
-class ObjectDetectionModel(define.InferenceModel[list[define.ObjectDetection]]):
+class ObjectDetectionModel(define.InferenceModel[list[types.ObjectDetectionData]]):
     "ObjectDetectionModel is responsible for detecting objects in an image"
 
     def __init__(self, name: define.AvailableModels):
@@ -25,7 +24,8 @@ class ObjectDetectionModel(define.InferenceModel[list[define.ObjectDetection]]):
     def is_loaded(self) -> bool:
         return self._engine is not None
 
-    async def detect(self, img: bytes) -> define.ModelResult[define.ObjectDetection]:
+    async def detect(self, img: bytes) -> list[types.ObjectDetectionData]:
+
         # check model is loaded before running
         if self._engine is None:
             raise RuntimeError(f"unable to detect model not loaded: {self.name}")
@@ -39,9 +39,10 @@ class ObjectDetectionModel(define.InferenceModel[list[define.ObjectDetection]]):
         results = self._engine(frame, verbose=False)
 
         # create a var for storing result.
-        final_result: list[define.ObjectDetection] = []
+        final_result: list[types.ObjectDetectionData] = []
 
         for r in results:
+            # Todo: remove this we need to plot at the end after running all the inferences model.
             # This gives a plotted output image of form np ndarray.
             annotated_image = r.plot()
 
@@ -64,12 +65,10 @@ class ObjectDetectionModel(define.InferenceModel[list[define.ObjectDetection]]):
                 label = self._engine.names[int(box.cls[0])]
 
                 # one of the result
-                result = define.ObjectDetection(label=label, bbox=(x1, y1, x2, y2))
+                result = types.ObjectDetectionData(label=label, bbox=(x1, y1, x2, y2))
 
                 # store in our data structure
                 final_result.append(result)
 
-        return define.ModelResult(
-            img=img,
-            inference=json.dumps([asdict(obj) for obj in final_result]),
-        )
+        return final_result
+    
