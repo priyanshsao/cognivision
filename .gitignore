@@ -1,6 +1,5 @@
 node_modules
 .venv
 .vscode
-proto
 __pycache__
 .ruff_cache
