@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/cognivision/gateway/types"
+	types "github.com/cognivision/gateway/proto"
 	"github.com/gorilla/websocket"
 	"github.com/sirupsen/logrus"
 )
@@ -80,6 +80,7 @@ func (s *Server) newClient(conn *websocket.Conn) *Client {
 
 // Write writes data to the buffer of the client.
 func (s *Server) Write(c *Client, r *types.Result) error {
+	// Todo: replace this with protobufs implementation.
 	payload, err := json.Marshal(r)
 	if err != nil {
 		logrus.Debugf("unable to marshal result: %v", err)
@@ -94,7 +95,7 @@ func (s *Server) Write(c *Client, r *types.Result) error {
 	case <-c.done:
 		return errors.New("client disconnected")
 	default:
-		logrus.Debugf("client buffer is full dropping result: %s", r.ID)
+		logrus.Debugf("client buffer is full dropping result: %s", r.Id)
 	}
 
 	return nil

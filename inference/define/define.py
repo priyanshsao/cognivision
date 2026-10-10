@@ -1,27 +1,9 @@
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from typing import Generic, TypeVar, Literal
 
 AvailableModels = Literal["yolo26n.pt"]
 
 T = TypeVar("T")
-
-
-@dataclass
-class ObjectDetection:
-    # label is the name of object
-    label: str
-    # bbox contains the bounding boxes of object
-    bbox: tuple[int, int, int, int] | None = None
-
-
-@dataclass
-class ModelResult(Generic[T]):
-    img: str
-    inference: T
-    id: str = ""
-    prompt: str = ""
-
 
 class InferenceModel(ABC, Generic[T]):
     """InferenceModel represents interface for running inference on images."""
@@ -34,7 +16,7 @@ class InferenceModel(ABC, Generic[T]):
         raise NotImplementedError
 
     @abstractmethod
-    async def detect(self, img: bytes) -> ModelResult[T]:
+    async def detect(self, img: bytes) -> T:
         """detect runs inference on provided image and returns structured result."""
         raise NotImplementedError
 

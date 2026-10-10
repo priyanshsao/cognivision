@@ -73,6 +73,7 @@ async def read(db: adapters.Redis, registry: adapters.Registry) -> None:
         for redis_id, fields in messages:
             last_id = redis_id
 
+            # Todo: replace this with protobuf implementation.
             # Get the request JSON from the stream
             raw_request = fields[b"request"]
 
