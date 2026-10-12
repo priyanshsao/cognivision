@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"sync"
@@ -10,6 +9,7 @@ import (
 	types "github.com/cognivision/gateway/proto"
 	"github.com/gorilla/websocket"
 	"github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/proto"
 )
 
 // ClientRequestHandler would be invoqued for each data requested by
@@ -80,10 +80,10 @@ func (s *Server) newClient(conn *websocket.Conn) *Client {
 
 // Write writes data to the buffer of the client.
 func (s *Server) Write(c *Client, r *types.Result) error {
-	// Todo: replace this with protobufs implementation.
-	payload, err := json.Marshal(r)
+
+	payload, err := proto.Marshal(r)
 	if err != nil {
-		logrus.Debugf("unable to marshal result: %v", err)
+		logrus.Debugf("unable to encode result: %v", err)
 		return err
 	}
 
@@ -95,7 +95,7 @@ func (s *Server) Write(c *Client, r *types.Result) error {
 	case <-c.done:
 		return errors.New("client disconnected")
 	default:
-		logrus.Debugf("client buffer is full dropping result: %s", r.Id)
+		logrus.Debugf("client buffer is full dropping result: %s", r.GetId())
 	}
 
 	return nil

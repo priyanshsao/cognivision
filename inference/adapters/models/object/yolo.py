@@ -71,4 +71,3 @@ class ObjectDetectionModel(define.InferenceModel[list[types.ObjectDetectionData]
                 final_result.append(result)
 
         return final_result
-    

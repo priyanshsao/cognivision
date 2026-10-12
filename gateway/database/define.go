@@ -2,12 +2,12 @@ package database
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	types "github.com/cognivision/gateway/proto"
 	"github.com/redis/go-redis/v9"
 	"github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/proto"
 )
 
 const IMAGE_KEY = "IMAGE:LATEST"
@@ -92,15 +92,16 @@ func (db *Db) Delete(ctx context.Context, key string) error {
 
 // PushToStream pushes data to the given stream.
 func (db *Db) PushToStrem(ctx context.Context, req *types.RedisRequest) (string, error) {
-	// Todo: remove this and replace with protobuf implementation.
-	payload, err := json.Marshal(req)
+
+	payload, err := proto.Marshal(req)
 	if err != nil {
+		logrus.Debugf("unable to encode request: %v", err)
 		return "", err
 	}
 
 	args := new(redis.XAddArgs)
 	args.Stream = REQUEST_STREAM
-	args.Values = map[string]interface{}{"request": payload}
+	args.Values = map[string]interface{}{"request": payload} // Todo: make this better to understand.
 
 	id, err := db.client.XAdd(ctx, args).Result()
 	if err != nil {
@@ -140,7 +141,6 @@ func readResult(ctx context.Context, db *Db, out chan *types.InferenceResult) {
 			return
 		default:
 			// otherwise continue
-
 		}
 
 		args := new(redis.XReadArgs)
@@ -170,7 +170,6 @@ func readResult(ctx context.Context, db *Db, out chan *types.InferenceResult) {
 
 		for _, stream := range streams {
 			for _, msg := range stream.Messages {
-				// Todo: completely update this implementation.
 
 				// msg.Values is of map[string] interface,
 				// so go has no idea of which type of data it is,
@@ -185,14 +184,14 @@ func readResult(ctx context.Context, db *Db, out chan *types.InferenceResult) {
 
 				r := new(types.InferenceResult)
 
-				if err := json.Unmarshal([]byte(rawResult), r); err != nil {
+				if err := proto.Unmarshal([]byte(rawResult), r); err != nil {
 					logrus.Debugf("unabled to unmarshal result: %v", err)
-
-					// Skip
-					continue
+					logrus.Warnf("result dropped, id: %q", msg.ID)
+					continue // skip
 				}
 
-				logrus.Debugf("recieved result with id: %v", r.Id)
+				logrus.Debugf("recieved result with processing id: %v", r.GetId())
+
 				// Add the pointer to 'out' channel,
 				// so whoever is reading can read from it.
 				// MAYBE: As of now this will block until the reader reads the message.
@@ -200,7 +199,6 @@ func readResult(ctx context.Context, db *Db, out chan *types.InferenceResult) {
 
 				// Set this id as the last read ID.
 				LAST_ID = msg.ID
-				logrus.Debugf("last seen is updated to id: %v", msg.ID)
 			}
 		}
 	}
