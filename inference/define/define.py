@@ -5,6 +5,7 @@ AvailableModels = Literal["yolo26n.pt"]
 
 T = TypeVar("T")
 
+
 class InferenceModel(ABC, Generic[T]):
     """InferenceModel represents interface for running inference on images."""
 

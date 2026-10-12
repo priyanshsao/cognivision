@@ -1,5 +1,5 @@
 # NOTE: This function contains the code for redis database.
-import inference.proto.define_pb2 as types 
+import inference.proto.define_pb2 as types
 
 import redis
 from typing import Literal

@@ -2,17 +2,17 @@ package gateway
 
 import (
 	"context"
-	"encoding/json"
 	"os"
 	"sync"
 	"time"
 
 	"github.com/cognivision/gateway/database"
 	"github.com/cognivision/gateway/interpreter"
-	"github.com/cognivision/gateway/server"
 	types "github.com/cognivision/gateway/proto"
+	"github.com/cognivision/gateway/server"
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/proto"
 )
 
 type Gateway struct {
@@ -74,10 +74,8 @@ func (gw *Gateway) readAndPush(ctx context.Context, c *server.Client, data []byt
 
 	cr := new(types.ClientRequest)
 
-	// Todo: replace with protobuf unmarshal
-	if err := json.Unmarshal(data, cr); err != nil {
-		logrus.Debugf("unable to unmarshal client request: %v", err)
-		return
+	if err := proto.Unmarshal(data, cr); err != nil {
+		logrus.Debugf("unable to decode client request: %v", err)
 	}
 
 	// Todo: For now this is fine, we want some simpler and shorter id's.
@@ -117,23 +115,19 @@ func (gw *Gateway) readResults(ctx context.Context) {
 			continue
 		}
 
-		// Todo: replace this with protobuf implementation.
-		jsonRes, err := json.Marshal(r.Inference)
+		detections := r.GetInference().GetDetections().String()
+		prompt := r.GetPrompt()
+		reply, err := gw.interpreter.Interpret(ctx, detections, prompt)
 		if err != nil {
-			logrus.Debugf("unable to marshal result: %v", err)
-		}
-
-		reply, err := gw.interpreter.Interpret(ctx, string(jsonRes), r.Prompt)
-		if err != nil {
-			logrus.Debugf("interpret problem: %v", err)
+			logrus.Debugf("unable to interpret reply: %v", err)
 		}
 
 		result := new(types.Result)
 
-		result.Id = r.Id
+		result.Id = r.GetId()
 		result.Reply = reply
-		result.Inference = r.Inference
-		
+		result.Inference = r.GetInference()
+
 		// Todo: add current time and date
 		result.Time = "2 pm"
 		result.Date = "2000"
@@ -142,7 +136,7 @@ func (gw *Gateway) readResults(ctx context.Context) {
 			logrus.Errorf("unable to write to client: %v", err)
 		}
 
-		go gw.db.Delete(ctx, result.Id)
+		go gw.db.Delete(ctx, result.GetId())
 	}
 }
 

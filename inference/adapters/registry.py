@@ -5,7 +5,7 @@
 from typing import Any
 
 from inference import define
-import inference.proto.define_pb2 as types 
+import inference.proto.define_pb2 as types
 
 
 class Registry:
