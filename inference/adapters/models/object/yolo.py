@@ -42,20 +42,6 @@ class ObjectDetectionModel(define.InferenceModel[list[types.ObjectDetectionData]
         final_result: list[types.ObjectDetectionData] = []
 
         for r in results:
-            # Todo: remove this we need to plot at the end after running all the inferences model.
-            # This gives a plotted output image of form np ndarray.
-            annotated_image = r.plot()
-
-            # encode the image into jpg format.
-            ok, encoded_img = cv2.imencode(".jpg", annotated_image)
-            if not ok:
-                log.debug("unable to encode image to JPG.")
-                log.warning("unable to process result: dropping result.")
-                continue
-
-            # convert to base64
-            img = base64.b64encode(encoded_img.tobytes()).decode("utf-8")
-
             # Loop over the detected objects
             for box in r.boxes:
                 # get the bounding coordinates

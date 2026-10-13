@@ -1,12 +1,11 @@
 import asyncio
 import logging
-import json
 import argparse
-import time
 from dataclasses import asdict
 
 from inference import adapters
 from inference import database
+import inference.proto.define_pb2 as types
 
 
 def setLogging():
@@ -67,56 +66,57 @@ async def read(db: adapters.Redis, registry: adapters.Registry) -> None:
         if not entries:
             continue
 
+        # Todo: change this to info.
         log.debug(f"recieved {len(entries)} new requests")
 
         _, messages = entries[0]
         for redis_id, fields in messages:
             last_id = redis_id
 
-            # Todo: replace this with protobuf implementation.
-            # Get the request JSON from the stream
-            raw_request = fields[b"request"]
+            request_bytes = fields[b"request"]
 
-            request = json.loads(raw_request)
+            request = types.RedisRequest()
+            request.ParseFromString(request_bytes)
 
-            # This is your UUID/key, NOT the Redis stream message ID
-            uuid = request["id"]
-            prompt = request["prompt"]
+            # This is uuid of request, NOT the Redis stream message ID.
+            id = request.id
+            prompt = request.prompt
 
-            # Get image using your UUID
-            img = db.get(uuid)
+            # Get image using your request ID.
+            inferencing_img = db.get(id)
 
-            if img is None:
-                log.warning("no image found: id: %s, dropping request.", uuid)
+            if inferencing_img is None:
+                log.warning("no image found for result with id: %s, dropping request.", id)
                 continue
 
-            log.debug("fetched image with size %d bytes from store.", len(img))
+            log.debug("fetched image with size %d bytes from store.", len(inferencing_img))
 
-            s = time.perf_counter()
-            r = await registry.detect("yolo26n.pt", img)
-            time_taken = time.perf_counter() - s
+            inference_result = types.InferenceResult()
+            inference = types.Inference()
+            detections = types.Detections()
 
-            r.id = uuid
-            r.prompt = prompt
+            r = await registry.detect("yolo26n.pt", inferencing_img)
 
-            json_result = json.dumps(asdict(r))
+            detections.object.extend(r)
 
-            inference = json.loads(r.inference)
+            # Todo: implement this using opencv
+            # for now leaving this empty 
+            inference.img = ""
+            inference.detections = detections
 
-            log.info(
-                "INFERENCE[%s][%.3f]: %s",
-                redis_id,
-                time_taken,
-                json.dumps(inference, indent=2),
-            )
+            inference_result.id = id
+            inference_result.prompt = prompt
 
-            db.write_to_stream("RESULT", json_result)
+            log.debug("generated inference result: %s", inference_result)
 
-            log.debug("wrote %d bytes to database.", len(json_result.encode()))
+            payload = inference_result.SerializeToString()
+            db.write_to_stream("RESULT", payload)
+
+            log.debug("successfully sent %d bytes to database.", len(payload))
 
 
 if __name__ == "__main__":
     try:
         asyncio.run(run())
     except KeyboardInterrupt:
-        log.info("shutting down inference server")
+        log.info("shutting down inference server.")
