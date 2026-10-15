@@ -25,7 +25,7 @@ class Registry:
 
     async def detect(
         self, model_name: define.AvailableModels, img: bytes
-    ) -> types.Result[Any]:
+    ) -> types.Result:
         model = self.models.get(model_name)
 
         if model is None:
