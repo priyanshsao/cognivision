@@ -129,9 +129,9 @@ func (gw *Gateway) readResults(ctx context.Context) {
 		result.Reply = reply
 		result.Inference = r.GetInference()
 
-		// Todo: add current time and date
-		result.Time = "2 pm"
-		result.Date = "2000"
+		t := time.Now()
+		result.Time = t.Format("03:04 PM")
+		result.Date = t.Format("2 Jan")
 
 		if err := gw.server.Write(c, result); err != nil {
 			logrus.Errorf("unable to write to client: %v", err)
