@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import argparse
-from dataclasses import asdict
 
 from inference import adapters
 from inference import database
