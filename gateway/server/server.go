@@ -149,7 +149,7 @@ func (c *Client) write() {
 	for {
 		select {
 		case data := <-c.buffer:
-			if err := c.conn.WriteMessage(websocket.TextMessage, data); err != nil {
+			if err := c.conn.WriteMessage(websocket.BinaryMessage, data); err != nil {
 				return
 			}
 			logrus.Debugf("wrote %d bytes to client.", len(data))
