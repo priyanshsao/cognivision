@@ -1,3 +1,3 @@
-from .define import InferenceModel, ModelResult, ObjectDetection, AvailableModels
+from .define import InferenceModel, AvailableModels
 
-__all__ = ["InferenceModel", "ModelResult", "AvailableModels", "ObjectDetection"]
+__all__ = ["InferenceModel", "AvailableModels"]
