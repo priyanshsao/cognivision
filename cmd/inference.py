@@ -102,7 +102,7 @@ async def read(db: adapters.Redis, registry: adapters.Registry) -> None:
             # Todo: implement this using opencv
             # for now leaving this empty 
             inference.img = ""
-            inference.detections = detections
+            inference.detections.CopyFrom(detections)
 
             inference_result.id = id
             inference_result.prompt = prompt
