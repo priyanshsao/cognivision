@@ -4,3 +4,6 @@ node_modules
 proto
 __pycache__
 .ruff_cache
+/gateway/proto
+/inference/proto
+*.pt
