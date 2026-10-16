@@ -106,6 +106,7 @@ async def read(db: adapters.Redis, registry: adapters.Registry) -> None:
             inference.detections.CopyFrom(detections)
 
             inference_result.id = id
+            inference_result.inference.CopyFrom(inference)
             inference_result.prompt = prompt
 
             log.debug("generated inference result: %s", inference_result)
