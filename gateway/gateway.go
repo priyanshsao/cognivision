@@ -76,6 +76,7 @@ func (gw *Gateway) readAndPush(ctx context.Context, c *server.Client, data []byt
 
 	if err := proto.Unmarshal(data, cr); err != nil {
 		logrus.Debugf("unable to decode client request: %v", err)
+		return
 	}
 
 	// Todo: For now this is fine, we want some simpler and shorter id's.
