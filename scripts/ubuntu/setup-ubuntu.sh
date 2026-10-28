@@ -8,7 +8,7 @@
 # Naming: FUNCTIONS and readonly CONSTANTS are UPPER_SNAKE_CASE, variables are camelCase.
 
 set -Eeuo pipefail
-
+ 
 scriptDir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 libDir="$scriptDir/lib"
 
@@ -25,22 +25,31 @@ done
 PHASE_CHECK() {
     CHECK_DEP needGo     "Go"     CHECK_GO     "$goVersion"
     CHECK_DEP needPython "Python" CHECK_PYTHON "$pythonVersion"
-
+    
     # A kept (newer) Python is reported as a command name; use it for the venv.
     if (( needPython == 0 )) && [[ -n "$foundCmd" ]]; then pythonCmd="$foundCmd"; fi
     CHECK_DEP needRedis  "Redis"  CHECK_REDIS  "$redisVersion"
+    CHECK_DEP needProtoc "protoc" CHECK_PROTOC "$protocVersion"
+    CHECK_DEP needProtocGenGo "protoc-gen-go" CHECK_PROTOC_GEN_GO "$protocGenGoVersion"
 }
-
+ 
 PHASE_INSTALL() {
-    if ! (( needGo || needPython || needRedis )); then return 0; fi
-
-    ENSURE_SUDO
-    RUN "Updating apt package index" "Package index updated" APT_GET update
-
-    if (( needGo )); then
+    if ! (( needGo || needPython || needRedis || needProtoc || needProtocGenGo )); then return 0; fi
+ 
+    # Everything except protoc-gen-go (installed by `go install`, as the user) needs root.
+    if (( needGo || needPython || needRedis || needProtoc )); then
+        ENSURE_SUDO
+        RUN "Updating apt package index" "Package index updated" APT_GET update
+    fi
+ 
+    # Go and protoc are downloaded: they need curl / unzip / CA certificates.
+    if (( needGo || needProtoc )); then
         if [[ -n "$(MISSING_SYSTEM_UTILITIES)" ]]; then
             RUN "Installing system utilities" "System utilities installed" INSTALL_SYSTEM_UTILITIES
         fi
+    fi
+ 
+    if (( needGo )); then
         RUN "Installing Go $goVersion" "Go $goVersion installed" INSTALL_GO
     fi
     if (( needPython )); then
@@ -50,14 +59,25 @@ PHASE_INSTALL() {
     if (( needRedis )); then
         RUN "Installing Redis $redisVersion" "Redis installed" INSTALL_REDIS
     fi
+    if (( needProtoc )); then
+        RUN "Installing protoc $protocVersion" "protoc $protocVersion installed" INSTALL_PROTOC
+    fi
+    # After Go: `go install` needs it.
+    if (( needProtocGenGo )); then
+        RUN "Installing protoc-gen-go $protocGenGoVersion" "protoc-gen-go $protocGenGoVersion installed" INSTALL_PROTOC_GEN_GO
+    fi
 }
-
+ 
 PHASE_VERIFY() {
     if (( needGo ));     then RUN "Verifying Go $goVersion"         "Go $goVersion verified"         CHECK_GO; fi
     if (( needPython )); then RUN "Verifying Python $pythonVersion" "Python $pythonVersion verified" CHECK_PYTHON; fi
     if (( needRedis ));  then RUN "Verifying Redis $redisVersion"   "Redis $redisVersion verified"   CHECK_REDIS; fi
+    if (( needProtoc )); then RUN "Verifying protoc $protocVersion" "protoc $protocVersion verified" CHECK_PROTOC; fi
+    if (( needProtocGenGo )); then
+        RUN "Verifying protoc-gen-go $protocGenGoVersion" "protoc-gen-go $protocGenGoVersion verified" CHECK_PROTOC_GEN_GO
+    fi
 }
-
+ 
 PHASE_REDIS_SERVICE() {
     if (( needRedis )) || ! redis-cli ping 2>/dev/null | grep -qx PONG; then
         ENSURE_SUDO
@@ -66,8 +86,9 @@ PHASE_REDIS_SERVICE() {
         SUCCESS "Redis service already running (PING ok)"
     fi
 }
-
+ 
 PHASE_SUMMARY() {
+    local goBinDir
     printf '\n'
     SUCCESS "Ubuntu setup completed successfully"
     if (( ${#keptNewer[@]} )); then
@@ -76,24 +97,31 @@ PHASE_SUMMARY() {
     if (( needGo )); then
         INFO "Open a new shell (or run: source $GO_PROFILE_FILE) to get Go on your PATH."
     fi
+    if (( needProtocGenGo )); then
+        goBinDir="$(GO_BIN_DIR)"
+        if [[ ":$originalPath:" != *":$goBinDir:"* ]]; then
+            INFO "protoc-gen-go was installed to $goBinDir. Add it to your PATH so protoc can find it:"
+            INFO "  export PATH=\"\$PATH:$goBinDir\"   (put this line in ~/.bashrc)"
+        fi
+    fi
 }
-
-# main script
+ 
 MAIN() {
     EXTRACT "$@"
-
+ 
     tmpDir="$(mktemp -d)"
     outputFile="$tmpDir/output"
     : >"$outputFile"
     trap CLEANUP EXIT
     trap ON_INTERRUPT INT TERM
     trap 'ON_ERROR "$LINENO"' ERR
-
+ 
     DETECT
+    originalPath="$PATH"
     export PATH="$GO_INSTALL_DIR/bin:$HOME/go/bin:$PATH"
-
-    INFO "Requested versions: Go $goVersion, Python $pythonVersion, Redis $redisVersion"
-
+ 
+    INFO "Requested versions: Go $goVersion, Python $pythonVersion, Redis $redisVersion, protoc $protocVersion, protoc-gen-go $protocGenGoVersion"
+ 
     PHASE_CHECK
     PHASE_INSTALL
     PHASE_VERIFY
@@ -101,5 +129,5 @@ MAIN() {
     SETUP_PROJECT
     PHASE_SUMMARY
 }
-
+ 
 MAIN "$@"

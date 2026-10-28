@@ -85,6 +85,37 @@ CHECK_REDIS() {
     echo "$found"
     COMPARE_VERSION "$found" "$redisVersion"
 }
+ 
+CHECK_PROTOC() {
+    local found
+ 
+    EXISTS protoc || return 1
+ 
+    # "libprotoc 25.1"
+    found="$(protoc --version | sed -nE 's/^libprotoc ([^ ]+).*/\1/p')"
+    [[ -n "$found" ]] || return 1
+ 
+    echo "$found"
+    COMPARE_VERSION "$found" "$protocVersion"
+}
+ 
+CHECK_PROTOC_GEN_GO() {
+    local bin found
+ 
+    bin="$(command -v protoc-gen-go || true)"
+    if [[ -z "$bin" ]] && EXISTS go; then
+        bin="$(GO_BIN_DIR)/protoc-gen-go"
+        [[ -x "$bin" ]] || bin=""
+    fi
+    [[ -n "$bin" ]] || return 1
+ 
+    # "protoc-gen-go v1.36.1"  (an old plugin without --version yields nothing -> reinstall)
+    found="$("$bin" --version 2>/dev/null | sed -nE 's/^protoc-gen-go v([^ ]+).*/\1/p')"
+    [[ -n "$found" ]] || return 1
+ 
+    echo "$found"
+    COMPARE_VERSION "$found" "$protocGenGoVersion"
+}
 
 # ASK_NEWER <label> <found> <requested>   -> sets choice=keep|exact
 ASK_NEWER() {
@@ -92,44 +123,46 @@ ASK_NEWER() {
     local found="$2"
     local req="$3"
     local reply=""
-
+ 
     WARN "$label $found is installed, which is newer than the requested $req."
-
+ 
     # Pre-answered via ON_NEWER_VERSION
     case "$NEWER_POLICY" in
         keep)  choice=keep;  INFO "ON_NEWER_VERSION=keep: keeping $label $found"; return 0 ;;
         exact) choice=exact; INFO "ON_NEWER_VERSION=exact: installing $label $req"; return 0 ;;
     esac
-
+ 
     if (( explained == 0 )); then
         cat >&2 <<'EOF'
     Having a newer version is fine. "Newer" does not mean "broken": most of the
     time it behaves exactly like the requested one. We only ask because this
     setup was prepared for the requested version, so a newer release MAY
     (rarely) behave differently.
-
+ 
     If something doesn't work later, simply run this script again and choose
     to install the exact version.
-
+ 
 EOF
         explained=1
     fi
-
+ 
     # No terminal to ask on (CI, pipes): keep what the user already has.
     if [[ ! -t 0 ]]; then
         WARN "No interactive terminal; keeping $label $found. Rerun with ON_NEWER_VERSION=exact to install $req instead."
         choice=keep
         return 0
     fi
-
+ 
     printf '      [K] Keep %s %s  (recommended if everything already works)\n' "$label" "$found" >&2
     printf '      [E] Install the exact requested version %s\n' "$req" >&2
     case "$label" in
         Python) printf '          (installed side by side; your newer Python is not removed)\n' >&2 ;;
         Redis)  printf '          (this downgrades Redis; data files written by a newer Redis may become unreadable)\n' >&2 ;;
         Go)     printf '          (replaces the Go in %s)\n' "$GO_INSTALL_DIR" >&2 ;;
+        protoc) printf '          (overwrites %s/bin/protoc)\n' "$PROTOC_INSTALL_PREFIX" >&2 ;;
+        protoc-gen-go) printf '          (go install replaces the existing plugin binary)\n' >&2 ;;
     esac
-
+ 
     while :; do
         read -r -p "    Your choice [K/e] (default K): " reply || reply=""
         case "${reply,,}" in
@@ -140,7 +173,7 @@ EOF
     done
     echo >&2
 }
-
+ 
 # CHECK_DEP <flag-variable-name> <label> <check-function> <required-version>
 # Runs a check behind a spinner and sets the flag variable to 1 (install) or 0 (skip).
 CHECK_DEP() {
@@ -151,13 +184,13 @@ CHECK_DEP() {
     local statusCode=0
     local found
     local cmd
-
+ 
     RUN_INTERACTIVE "Checking $label" "$checkFn" || statusCode=$?
-
+ 
     found="$(sed -n 1p "$outputFile")"
     cmd="$(sed -n 2p "$outputFile")"
     foundCmd=""
-
+ 
     case "$statusCode" in
         0)
             SUCCESS "$label $found already installed — skipped"
@@ -277,6 +310,43 @@ START_REDIS() {
  
     echo "Redis did not respond to PING."
     return 1
+}
+ 
+# ------------------------------------------------------------------- protobuf --
+INSTALL_PROTOC() {
+    local archive="protoc-${protocVersion}-linux-${protocArch}.zip"
+    local url="${PROTOC_DOWNLOAD_BASE}/v${protocVersion}/${archive}"
+    local extractDir="$tmpDir/protoc"
+ 
+    # protobuf releases publish no checksum files, so integrity relies on HTTPS.
+    curl -fsSL --retry 3 "$url" -o "$tmpDir/$archive" \
+        || { echo "Could not download $url (check the version and your network)"; return 1; }
+ 
+    mkdir -p "$extractDir" || return 1
+    unzip -q -o "$tmpDir/$archive" -d "$extractDir" \
+        || { echo "Downloaded archive $archive is not a valid zip file"; return 1; }
+    [[ -x "$extractDir/bin/protoc" ]] \
+        || { echo "bin/protoc was not found inside $archive"; return 1; }
+ 
+    # $sudoCmd is intentionally unquoted: it is empty when already root.
+    # shellcheck disable=SC2086
+    {
+        $sudoCmd install -d "$PROTOC_INSTALL_PREFIX/bin" "$PROTOC_INSTALL_PREFIX/include" || return 1
+        $sudoCmd install -m 0755 "$extractDir/bin/protoc" "$PROTOC_INSTALL_PREFIX/bin/protoc" || return 1
+ 
+        # Well-known types (google/protobuf/*.proto): replace the old copy.
+        if [[ -d "$extractDir/include/google" ]]; then
+            $sudoCmd rm -rf "$PROTOC_INSTALL_PREFIX/include/google/protobuf" || return 1
+            $sudoCmd cp -r "$extractDir/include/google" "$PROTOC_INSTALL_PREFIX/include/" || return 1
+            $sudoCmd chmod -R a+rX "$PROTOC_INSTALL_PREFIX/include/google" || return 1
+        fi
+    }
+}
+ 
+# Runs as the current user (no sudo): the plugin lands in the user's Go bin dir.
+INSTALL_PROTOC_GEN_GO() {
+    EXISTS go || { echo "Go is required to install protoc-gen-go but 'go' was not found on PATH."; return 1; }
+    go install "${PROTOC_GEN_GO_MODULE}@v${protocGenGoVersion}"
 }
 
 SETUP_GO_DEPS() {

@@ -30,6 +30,10 @@ readonly GO_INSTALL_DIR="/usr/local/go"
 readonly GO_PROFILE_FILE="/etc/profile.d/go.sh"
 readonly GO_DOWNLOAD_BASE="https://dl.google.com/go"
 
+readonly PROTOC_DOWNLOAD_BASE="https://github.com/protocolbuffers/protobuf/releases/download"
+readonly PROTOC_INSTALL_PREFIX="/usr/local"
+readonly PROTOC_GEN_GO_MODULE="google.golang.org/protobuf/cmd/protoc-gen-go"
+
 readonly -a REQUIRED_PACKAGES=(ca-certificates curl tar gzip)
 readonly APT_LOCK_TIMEOUT=120
 
@@ -39,6 +43,8 @@ readonly REDIS_PING_INTERVAL=0.5
 readonly GO_VERSION_REGEX='^[0-9]+\.[0-9]+(\.[0-9]+)?$'
 readonly PYTHON_VERSION_REGEX='^[0-9]+\.[0-9]+$'
 readonly REDIS_VERSION_REGEX='^[0-9]+\.[0-9]+(\.[0-9]+)?$'
+readonly PROTOC_VERSION_REGEX='^[0-9]+\.[0-9]+(\.[0-9]+)?$'
+readonly PROTOC_GEN_GO_VERSION_REGEX='^[0-9]+\.[0-9]+(\.[0-9]+)?$'
 
 # ask | keep | exact : what to do when a NEWER version is already installed
 readonly NEWER_POLICY="${ON_NEWER_VERSION:-ask}"
@@ -47,6 +53,8 @@ readonly NEWER_POLICY="${ON_NEWER_VERSION:-ask}"
 goVersion=""
 pythonVersion=""
 redisVersion=""
+protocVersion=""
+protocGenGoVersion=""
 
 # Runtime
 tmpDir=""         # temp dir, removed on exit
@@ -54,12 +62,16 @@ outputFile=""     # captures the output of the current background step
 processId=""      # pid of the running background step
 sudoCmd=""        # "sudo", or "" when already root
 goArch=""         # amd64 | arm64
+protocArch=""     # x86_64 | aarch_64 (protoc release naming)
+originalPath=""   # PATH before this script extended it
 pythonCmd=""      # interpreter used to create the virtualenv
 
 # Per-dependency decision: 1 = needs installing, 0 = already satisfied / kept
 needGo=0
 needPython=0
 needRedis=0
+needProtoc=0
+needProtocGenGo=0
 
 # Newer-version prompt state
 choice=""         # keep | exact
