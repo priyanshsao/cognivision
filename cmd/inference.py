@@ -56,7 +56,7 @@ async def run() -> None:
     return await read(db, registry)
 
 
-async def read(db: adapters.Redis, registry: adapters.Registry) -> None:
+async def read(db: database.Redis, registry: adapters.Registry) -> None:
     # get all the new entries from now on
     last_id = "$"
 
