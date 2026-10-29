@@ -18,7 +18,6 @@ class Redis:
             port=self.port,
             decode_responses=False,
             socket_timeout=None,
-            retry_on_timeout=True,
         )
 
     def ping(self):
